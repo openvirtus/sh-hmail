@@ -1,0 +1,296 @@
+#!/bin/sh -e
+#L:
+#l:  Copyright (c) 2018 Openvirtus.com, http://openvirtus.com
+#L:
+#L:  Permission is hereby granted, free of charge, to any person obtaining
+#L:  a copy of this software and associated documentation files (the
+#L:  "Software"), to deal in the Software without restriction, including
+#L:  without limitation the rights to use, copy, modify, merge, publish,
+#L:  distribute, sublicense, and/or sell copies of the Software, and to
+#L:  permit persons to whom the Software is furnished to do so, subject to
+#L:  the following conditions:
+#L:
+#L:  The above copyright notice and this permission notice shall be
+#L:  included in all copies or substantial portions of the Software.
+#L:
+#L:  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#L:  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#L:  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#L:  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+#L:  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+#L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+#L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#L:
+#h: Usage: $0 [OPTS...]
+#h:
+#h: Configuration management.
+#h:
+#h:    -v              : Show configurations.
+#h:    -o OPTION=VALUE : Set configurations.
+#h:
+#h: Install configuration.
+#h:
+#h:    -c mailx : Configure `mailx`.
+#h:    -c mail  : Configure `mail`.
+#h:    -c msmtp : Configure `msmtp`.
+#h:
+#h: Install software.
+#h:
+#h:    -i msmtp             : Install MSMTP.
+#h:    -i certs             : Install ca-certificates.
+#h:    -i mail              : Install BSD mailx.
+#h:    -i msmtp-as-sendmail : Put msmtp in sendmail place.
+#h:    -i restore-sendmail  : Restore msmtp.
+#h:
+#h: Map user and mail in /etc/aliases
+#h:
+#h:    -m user=pass : Map user to email.
+#h:    -d default   : Set default account in msmtp.
+. hutil
+hsmtp() {
+    ## Parse command line arguments.
+    local OPTIND optopt= ops= c= configs= i= installs= default=
+    while getopts "vo:i:c:m:d:" optopt;do # OPTARG
+        local ops="${ops}${optopt}"
+        case $optopt in
+            o)  local "${OPTARG}";;
+            c)  local configs="${configs} ${OPTARG}"   ;;
+            i)  local installs="${installs} ${OPTARG}" ;;
+            m)  hsmtp_map_alias                  \
+                    "`hutil optopt "${OPTARG}"`" \
+                    "`hutil optarg "${OPTARG}"`";;
+            d)  local default="${OPTARG}";;
+            \?) return 1;;
+        esac
+    done
+    shift $(( $OPTIND - 1 ))
+    ## Operations.
+    case "${ops}" in *v*) hsmtp_show_variables;; esac
+    for i in ${installs}; do hsmtp_install_`hutil fname "${i}"`; done
+    for c in ${configs};  do hsmtp_configure_`hutil fname "${c}"`; done
+    if test -n "${default}";then
+        hsmtp_set_default_msmtp "${default}"
+    fi
+}
+hsmtp_show_variables() {
+    printf '\n'
+    printf '## SYSTEM INFORMATION\n'
+    printf '\n'
+    printf '%-20s: %s\n' MSMTP_RCFILE "${MSMTP_RCFILE}"
+    printf '%-20s: %s\n' MAILX_RCFILE "${MAILX_RCFILE}"
+    printf '%-20s: %s\n' MAIL_RCFILE  "${MAIL_RCFILE}"
+    printf '%-20s: %s\n' ALIAS_FILE   "${ALIAS_FILE}"
+    printf '\n'
+    printf '## ACCOUNT INFORMATION\n'
+    printf '\n'
+    printf '%-20s: %s\n' SMTP_NAME     "${SMTP_NAME}"
+    printf '%-20s: %s\n' SMTP_PASSWORD "(`echo ${SMTP_PASSWORD} | wc -c` characters)"
+    printf '%-20s: %s\n' SMTP_ACCOUNT  "${SMTP_ACCOUNT}"
+    printf '%-20s: %s\n' SMTP_SERVER   "${SMTP_SERVER}"
+    printf '%-20s: %s\n' SMTP_SSL_PORT "${SMTP_SSL_PORT}"
+}
+hsmtp_calc_variables() {
+    if hutil has freebsd;then
+        MSMTP_RCFILE="${MSMTP_RCFILE:-/usr/local/etc/msmtprc}"  # ~/.msmtprc
+        MAILX_RCFILE="${MAILX_RCFILE:-/etc/mailx.rc}" # ~/.mailrc
+        MAIL_RCFILE="${MAIL_RCFILE:-/etc/mail.rc}"
+        ALIAS_FILE="${ALIAS_FILE:-/etc/aliases}"
+    else
+        MSMTP_RCFILE="${MSMTP_RCFILE:-/etc/msmtprc}"  # ~/.msmtprc
+        MAILX_RCFILE="${MAILX_RCFILE:-/etc/mailx.rc}" # ~/.mailrc
+        MAIL_RCFILE="${MAIL_RCFILE:-/etc/mail.rc}"
+        ALIAS_FILE="${ALIAS_FILE:-/etc/aliases}"
+    fi
+    SMTP_NAME="${SMTP_NAME:-}"
+    SMTP_PASSWORD="${SMTP_PASSWORD:-}"
+    SMTP_ACCOUNT="${SMTP_ACCOUNT:-}"
+    SMTP_SERVER="${SMTP_SERVER:-}"
+    SMTP_SSL_PORT="${HSMTP_SSL_PORT:-465}"
+}
+
+
+
+
+
+
+## ----------------------------------------------------------------------------------
+## ---- CONFIGURATION ---------------------------------------------------------------
+## ----------------------------------------------------------------------------------
+hsmtp_configure_mailx() {
+    if sudo test -f "${MAILX_RCFILE}" && which msmtp >/dev/null 2>&1;then
+        hutil info "Editing ${MAILX_RCFILE} ..."
+        hutil fadd sudo "${MAILX_RCFILE}" MSMTP <<EOF
+set sendmail="`which msmtp`"
+set mta="`which msmtp`"
+EOF
+    fi
+}
+hsmtp_configure_mail() {
+    if sudo test -f "${MAIL_RCFILE}" && which msmtp >/dev/null 2>&1;then
+        hutil info "Editing ${MAIL_RCFILE} ..."
+        hutil fadd sudo "${MAIL_RCFILE}" MSMTP <<EOF
+set sendmail="`which msmtp`"
+set mta="`which msmtp`"
+EOF
+    fi
+}
+hsmtp_configure_msmtp() {
+    hutil errif "Please set SMTP_SERVER."  test ! -n "${SMTP_SERVER}"
+    hutil errif "Please set SMTP_SSL_PORT" test ! -n "${SMTP_SSL_PORT}"
+    hutil errif "Please set SMTP_ACCOUNT"  test ! -n "${SMTP_ACCOUNT}"
+    hutil errif "Please set SMTP_PASSWORD" test ! -n "${SMTP_PASSWORD}"
+    if test -f /etc/ssl/certs/ca-certificates.crt;then
+        local crt=/etc/ssl/certs/ca-certificates.crt
+    elif test -f /etc/pki/tls/certs/ca-bundle.crt;then
+        local crt=/etc/pki/tls/certs/ca-bundle.crt
+    elif test -f /usr/local/share/certs/ca-root-nss.crt;then
+        local crt=/usr/local/share/certs/ca-root-nss.crt
+    fi
+    case "${SMTP_SSL_PORT}" in
+        465)    local tls_starttls=off tls=on;;
+        587|25) local tls_starttls=on  tls=on;;
+        *)      local tls_starttls=on  tls=on;;
+    esac
+    hutil info "Editing ${MSMTP_RCFILE} ..."
+    hutil fadd sudo "${MSMTP_RCFILE}" "${SMTP_ACCOUNT}" <<EOF
+account        ${SMTP_ACCOUNT}
+host           ${SMTP_SERVER}
+port           ${SMTP_SSL_PORT}
+from           "${SMTP_ACCOUNT}"
+user           "${SMTP_ACCOUNT}"
+password       "${SMTP_PASSWORD}"
+tls_starttls   ${tls_starttls}
+auth           on
+tls            ${tls}
+logfile        /tmp/msmtp.log
+tls_trust_file ${crt}
+EOF
+}
+hsmtp_set_default_msmtp() { # <account>
+    hutil fadd sudo "${MSMTP_RCFILE}" default <<EOF
+account default : ${1}
+EOF
+}
+
+
+
+
+
+
+
+## -------------------------------------------------------------------------------
+## ---- INSTALL SOFTWARE ---------------------------------------------------------
+## -------------------------------------------------------------------------------
+hsmtp_install_msmtp() {
+    if which msmtp >/dev/null 2>&1;then
+        hutil info "msmtp is already installed (`which msmtp`)"
+    elif test -f /usr/bin/apt-get;then
+        sudo apt-get -y install "msmtp"
+    elif test -f /usr/bin/yum;then
+        sudo yum -y install "msmtp"
+    elif test -f /bin/xbps-install;then
+        sudo xbps-install -S -y "msmtp"
+    elif test -f /usr/sbin/pkg;then
+        sudo pkg install --yes "msmtp"
+    else
+        hutil fatal "Do not know how to install msmtp."
+    fi
+}
+hsmtp_install_certs() {
+    if test -f /usr/sbin/pkg;then
+        sudo pkg install --yes "security/ca_root_nss"
+    fi
+    if test ! -f /etc/pki/tls/certs/ca-bundle.crt && test -f /usr/bin/yum;then
+        sudo yum -y install ca-certificates
+    fi
+}
+hsmtp_install_mail() {
+    if which mail >/dev/null 2>&1;then
+        hutil info "Mail is already installed."
+    elif test -f /usr/bin/yum;then
+        sudo yum -y install "mailx"
+    elif test -f /bin/xbps-install;then
+        sudo xbps-install -S -y "mailx"
+    elif test -f /usr/bin/apt-get;then
+        sudo apt-get -y install "bsd-mailx"
+    else
+        hutil fatal "Do not know how to install mailx on this machine."
+    fi
+    if mail --version 2>/dev/null | grep GNU >/dev/null;then
+        hutil error "Please install `BSD mailx`, no GNU mailutils. (msmtp: no recipients found)" >&2
+    fi
+}
+hsmtp_install_msmtp_as_sendmail() {
+    local sendmail="`      which sendmail       2>/dev/null `"
+    local sendmail_orig="` which sendmail.orig  2>/dev/null `"
+    local msmtp="`         which msmtp          2>/dev/null `"
+    hutil errif "No sendmail installed on the system." test ! -n "${sendmail}"
+    hutil errif "No msmtp installed on the system."    test ! -n "${msmtp}"
+    if test -n "${sendmail_orig}";then
+        hutil info "Sendmail already linked to msmtp."
+    else
+        sudo mv "${sendmail}" "${sendmail}.orig"
+        sudo ln -s "${msmtp}" "${sendmail}"
+    fi
+}
+hsmtp_install_restore_sendmail() {
+    local sendmail_orig="`which sendmail.orig 2>/dev/null`"
+    if test ! -n "${sendmail_orig}";then
+        hutil info "Sendmail not linked to msmtp."
+    else
+        local sendmail="`echo "${sendmail_orig}" | sed 's|\.orig$||'`"
+        sudo rm -f "${sendmail}"
+        sudo mv "${sendmail_orig}" "${sendmail}"
+    fi
+}
+
+
+
+
+
+
+
+
+
+## --------------------------------------------------------------------------------------
+## ---- OPERATIONS ----------------------------------------------------------------------
+## --------------------------------------------------------------------------------------
+
+hsmtp_map_alias() { # <user> <mail>
+    local user="$1" mail="$2" file="${ALIAS_FILE}"
+    hutil errif "Please specify a user."           test ! -n "${user}"
+    hutil errif "Please specify an email account." test ! -n "${mail}"
+    if test -f "${ALIAS_FILE}" && grep "^${user}:" "${ALIAS_FILE}" >/dev/null 2>&1;then
+        sudo sed -i".bk" '/^${user}:/s|:.*|: ${mail}|g' "${ALIAS_FILE}"
+        sudo rm -f 
+    else
+        sudo                  \
+            u="${user}"       \
+            m="${mail}"       \
+            f="${ALIAS_FILE}" \
+            sh -c 'echo "${u}: ${m}" >> ${f}'
+    fi
+}
+
+
+
+
+
+
+
+
+
+
+
+
+## ------------------------------------------------------------------------------
+hsmtp_calc_variables
+if test @"`basename "$0"`" = @"hsmtp";then
+    if test -n "$1";then
+        hsmtp "$@"
+    else
+        sed -n 's/^ *#h: \{0,1\}//p' "$0" | sed "s|\\\$0|`basename $0`|g"
+        echo ""
+        sed -n 's/^ *#l: \{0,2\}//p' "$0"
+    fi
+fi
