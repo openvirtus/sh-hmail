@@ -8,9 +8,7 @@
 #h: -i mu4e   : Install `mu` and `mu4e`.
 #h: -c mu4e   : Configure GNU/Emacs mu4e email reader, for this lists
 #h:             the accounts in `~/.msyncrc`.
-
 . hutil
-. hapt
 himap() {
     ## Parse command line arguments.
     local OPTIND optopt= ops= i= installs= c= configs=

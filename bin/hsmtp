@@ -157,7 +157,7 @@ account        ${SMTP_ACCOUNT}
 host           ${SMTP_SERVER}
 port           ${SMTP_SSL_PORT}
 from           "${SMTP_ACCOUNT}"
-user           "${SMTP_ACCOUNT}"
+user           "${SMTP_USERNAME:-${SMTP_ACCOUNT}}"
 password       "${SMTP_PASSWORD}"
 tls_starttls   ${tls_starttls}
 auth           on
@@ -185,34 +185,34 @@ hsmtp_install_msmtp() {
     if which msmtp >/dev/null 2>&1;then
         hutil info "msmtp is already installed (`which msmtp`)"
     elif test -f /usr/bin/apt-get;then
-        sudo apt-get -y install "msmtp"
+        hutil vrun sudo apt-get -y install "msmtp"
     elif test -f /usr/bin/yum;then
-        sudo yum -y install "msmtp"
+        hutil vrun sudo yum -y install "msmtp"
     elif test -f /bin/xbps-install;then
-        sudo xbps-install -S -y "msmtp"
+        hutil vrun sudo xbps-install -S -y "msmtp"
     elif test -f /usr/sbin/pkg;then
-        sudo pkg install --yes "msmtp"
+        hutil vrun sudo pkg install --yes "msmtp"
     else
         hutil fatal "Do not know how to install msmtp."
     fi
 }
 hsmtp_install_certs() {
     if test -f /usr/sbin/pkg;then
-        sudo pkg install --yes "security/ca_root_nss"
+        hutil vrun sudo pkg install --yes "security/ca_root_nss"
     fi
     if test ! -f /etc/pki/tls/certs/ca-bundle.crt && test -f /usr/bin/yum;then
-        sudo yum -y install ca-certificates
+        hutil vrun sudo yum -y install ca-certificates
     fi
 }
 hsmtp_install_mail() {
     if which mail >/dev/null 2>&1;then
         hutil info "Mail is already installed."
     elif test -f /usr/bin/yum;then
-        sudo yum -y install "mailx"
+        hutil vrun sudo yum -y install "mailx"
     elif test -f /bin/xbps-install;then
-        sudo xbps-install -S -y "mailx"
+        hutil vrun sudo xbps-install -S -y "mailx"
     elif test -f /usr/bin/apt-get;then
-        sudo apt-get -y install "bsd-mailx"
+        hutil vrun sudo apt-get -y install "bsd-mailx"
     else
         hutil fatal "Do not know how to install mailx on this machine."
     fi
