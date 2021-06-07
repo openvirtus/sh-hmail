@@ -1,5 +1,8 @@
 #!/bin/sh -e
 #L:
+#L:  This software is free to use and modify, but not free to maintain.
+#L:
+#l:  Donate bitcoin: 1C1ZzDje7vHhF23mxqfcACE8QD4nqxywiV
 #l:  Copyright (c) 2018 Openvirtus.com, http://openvirtus.com
 #L:
 #L:  Permission is hereby granted, free of charge, to any person obtaining
@@ -21,12 +24,14 @@
 #L:  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 #L:  WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #L:
+#r: ## HMAIL-TEST
+#r:
 #h: Usage: $0 [FLAGS...] [USER@[DOMAIN]]
 #h:
 #h: -m : Get mail exchanger MX field.
 #h: -M : Get mail provider.
 #h: -t : Send test mail.
-#::
+#r:
 #i: nslookup
 #i:    xbps: bind-utils
 hmail_test() {
