@@ -6,6 +6,7 @@
     -M : Get mail provider.
     -t : Send test mail.
 
+
 ## HSMTP
 
     Usage: hsmtp [OPTS...]
@@ -33,6 +34,7 @@
     
        -m user=pass : Map user to email.
        -d default   : Set default account in msmtp.
+
 
 ## DONATIONS
 <ul>
